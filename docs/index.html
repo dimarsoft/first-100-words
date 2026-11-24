@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#e8735a">
 <title>Первые 100 слов</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -34,10 +34,14 @@
 <!-- ===== Список слов ===== -->
 <section id="view-list" class="view" hidden>
   <header class="top">
-    <div class="top-title" id="list-title">Слова</div>
-    <div class="counter"><b id="count">0</b><span> / 100</span></div>
+    <div class="top-row">
+      <div>
+        <div class="top-title" id="list-title">Слова</div>
+        <div class="top-sub muted" id="count-sub"></div>
+      </div>
+      <div class="counter"><b id="count">0</b><span> / 100</span></div>
+    </div>
     <div class="bar"><div id="bar-fill"></div></div>
-    <div class="top-sub muted" id="count-sub"></div>
   </header>
   <div id="backup-banner" class="banner" hidden>
     Давно не было резервной копии. <button class="link" data-go="#/settings">Сделать</button>
@@ -61,14 +65,14 @@
   <div class="form">
     <label class="field">
       <span>Как сказал(а)</span>
-      <input id="f-pron" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="например: биби">
+      <input id="f-pron" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="например: биби">
     </label>
     <div id="f-tiles" class="tiles" aria-label="Выбор ударения"></div>
     <p id="f-stress-hint" class="hint"></p>
 
     <label class="field">
       <span>Что значит</span>
-      <input id="f-meaning" type="text" autocomplete="off" autocapitalize="off" placeholder="например: машина">
+      <input id="f-meaning" type="text" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="например: машина">
     </label>
     <div id="f-sugg" class="chips"></div>
 
@@ -102,9 +106,13 @@
       <div id="f-audio" class="audio-box"></div>
     </div>
 
+  </div>
+  <div class="form-actions">
     <p id="f-why" class="hint warn"></p>
-    <button id="f-save" class="btn primary big">Сохранить</button>
-    <button id="f-draft" class="btn ghost">Дополнить позже</button>
+    <div class="form-actions-row">
+      <button id="f-draft" class="btn">Дополнить позже</button>
+      <button id="f-save" class="btn primary">Сохранить</button>
+    </div>
   </div>
 </section>
 

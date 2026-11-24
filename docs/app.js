@@ -166,6 +166,7 @@ function showView(name) {
   for (const v of VIEWS) $('view-' + v).hidden = v !== name;
   const navOn = ['list', 'stats', 'settings'].includes(name);
   $('nav').hidden = !navOn;
+  document.body.classList.toggle('no-nav', !navOn);
   document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === name));
   window.scrollTo(0, 0);
 }
@@ -317,6 +318,7 @@ function renderTiles() {
     if (isVowel(ch) && vi.length > 1) {
       const b = el('button', 'tile' + (form.stress === i ? ' on' : ''), form.stress === i ? ch.toUpperCase() : ch);
       b.type = 'button';
+      b.onpointerdown = (e) => e.preventDefault(); // фокус остаётся в поле — клавиатура не закрывается
       b.onclick = () => { form.stress = i; renderTiles(); validate(); };
       box.append(b);
     } else {
@@ -354,6 +356,16 @@ function renderSugg() {
   }
 }
 $('f-meaning').addEventListener('input', (e) => { form.meaning = e.target.value; renderSugg(); validate(); });
+
+// Клавиша «Далее»/«Готово» на клавиатуре телефона
+$('f-pron').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); $('f-meaning').focus(); }
+});
+$('f-meaning').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (!$('f-save').disabled) saveWord(false); else e.target.blur();
+});
 
 // --- дата
 function renderDate() {
