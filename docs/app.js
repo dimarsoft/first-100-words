@@ -86,6 +86,30 @@ function ageAt(s) {
   if (y === 0) return `${m} мес`;
   return m ? `${y} г ${m} мес` : `${y} г`;
 }
+function ageAtDetailed(s) {
+  if (!state.child || !state.child.birth) return '';
+  const b = strToDate(state.child.birth), d = strToDate(s);
+  if (d < b) return '';
+
+  const anniversary = (months) => {
+    const year = b.getFullYear(), month = b.getMonth() + months;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    return new Date(year, month, Math.min(b.getDate(), lastDay));
+  };
+  let totalMonths = (d.getFullYear() - b.getFullYear()) * 12 + d.getMonth() - b.getMonth();
+  if (anniversary(totalMonths) > d) totalMonths--;
+  const completed = anniversary(totalMonths);
+  const years = Math.floor(totalMonths / 12), months = totalMonths % 12;
+  const utcDay = (date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = (utcDay(d) - utcDay(completed)) / 86400000;
+  const unit = (n, one, few, many) => {
+    if (n % 100 >= 11 && n % 100 <= 14) return many;
+    return n % 10 === 1 ? one : n % 10 >= 2 && n % 10 <= 4 ? few : many;
+  };
+  return `${years} ${unit(years, 'год', 'года', 'лет')}, ` +
+    `${months} ${unit(months, 'месяц', 'месяца', 'месяцев')}, ` +
+    `${days} ${unit(days, 'день', 'дня', 'дней')}`;
+}
 
 /* ================= Слова и ударение ================= */
 const isVowel = (ch) => VOWELS.includes(ch);
@@ -595,7 +619,7 @@ function openCard(id) {
   const add = (k, v) => { const r = el('div'); r.append(el('span', 'k', k), el('span', null, v)); kv.append(r); };
   if (num) add('Номер в словаре', String(num));
   add('Появилось', fmtLong(w.date));
-  const age = ageAt(w.date); if (age) add('Возраст', age);
+  const age = ageAtDetailed(w.date); if (age) add('Возраст', age);
   add('Сказал(а)', w.self ? 'сам(а)' : 'повторил(а) за взрослым');
   box.append(kv);
 
