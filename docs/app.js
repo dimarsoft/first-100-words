@@ -715,6 +715,21 @@ function renderSettings() {
       $('s-storage').textContent = p ? 'Данные защищены от автоочистки браузером.' : 'Браузер может очистить данные при нехватке места — делайте резервные копии.';
     });
   }
+  renderAppVersion();
+}
+
+async function renderAppVersion() {
+  const target = $('s-version');
+  target.textContent = 'Загрузка информации о версии…';
+  try {
+    const response = await fetch('git-info.json', { cache: 'no-cache' });
+    if (!response.ok) throw new Error('Git metadata unavailable');
+    const info = await response.json();
+    if (!info.version || !info.commit || !info.date) throw new Error('Incomplete Git metadata');
+    target.textContent = `Версия ${info.version} · коммит ${info.commit} · ${new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(info.date))}`;
+  } catch (_) {
+    target.textContent = 'Версия недоступна';
+  }
 }
 $('s-save-child').onclick = async () => {
   const b = $('s-birth').value;
