@@ -962,10 +962,11 @@ $('s-drive-off').onclick = async () => {
 function exportRows() {
   return sortedWords().map((w, i) => [
     i + 1, showWord(w), w.meaning, fmtLong(w.date), ageAt(w.date), w.self ? 'сам(а)' : 'за взрослым',
-    (w.history || []).map((h) => display(h.pron, h.stress)).join(', '), w.story || '',
+    (w.history || []).map((h) => display(h.pron, h.stress)).join(', '), w.audio ? 'есть' : 'нет', w.story || '',
   ]);
 }
-const EXPORT_HEAD = ['№', 'Как говорит', 'Значение', 'Дата появления', 'Возраст', 'Сам / за взрослым', 'Раньше говорил(а)', 'Как появилось слово?'];
+// «Как появилось слово?» — всегда крайний правый столбец.
+const EXPORT_HEAD = ['№', 'Как говорит', 'Значение', 'Дата появления', 'Возраст', 'Сам / за взрослым', 'Раньше говорил(а)', 'Аудиозапись', 'Как появилось слово?'];
 
 $('s-csv').onclick = () => {
   const q = (v) => `"${String(v).replace(/"/g, '""')}"`;
