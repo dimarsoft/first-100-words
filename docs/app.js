@@ -42,13 +42,17 @@ function openDB() {
     r.onerror = () => reject(r.error);
   });
 }
+let dbWrites = 0; // идут записи в базу — не перезагружать страницу ради обновления
 function dbReq(store, mode, op) {
-  return new Promise((resolve, reject) => {
+  const write = mode === 'readwrite';
+  if (write) dbWrites++;
+  const p = new Promise((resolve, reject) => {
     const t = db.transaction(store, mode);
     const r = op(t.objectStore(store));
     t.oncomplete = () => resolve(r ? r.result : undefined);
     t.onerror = t.onabort = () => reject(t.error);
   });
+  return write ? p.finally(() => { dbWrites--; }) : p;
 }
 const dbAllWords = () => dbReq('words', 'readonly', (s) => s.getAll());
 const dbPutWord = (w) => dbReq('words', 'readwrite', (s) => s.put(w));
@@ -140,16 +144,22 @@ function toast(msg) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
 }
 // Диалог: buttons = [{ text, cls, value }]; возвращает value нажатой кнопки
+// Последняя кнопка вопроса — всегда «Отмена»: её значение возвращается, если вопрос закрыт
+// переходом на другой экран (кнопка «Назад» на Android).
+let askCancel = null;
 function ask(textOrNode, buttons) {
+  if (askCancel) askCancel();
   return new Promise((resolve) => {
     const m = $('modal'), txt = $('modal-text'), box = $('modal-btns');
+    const done = (value) => { m.hidden = true; askCancel = null; resolve(value); };
     txt.replaceChildren(typeof textOrNode === 'string' ? el('div', null, textOrNode) : textOrNode);
     box.replaceChildren();
     for (const b of buttons) {
       const btn = el('button', `btn ${b.cls || ''}`, b.text);
-      btn.onclick = () => { m.hidden = true; resolve(b.value); };
+      btn.onclick = () => done(b.value);
       box.append(btn);
     }
+    askCancel = () => done(buttons[buttons.length - 1].value);
     m.hidden = false;
   });
 }
@@ -197,6 +207,8 @@ function showView(name) {
   window.scrollTo(0, 0);
 }
 function route() {
+  if (askCancel) askCancel();
+  releaseCardUrls();
   stopRecording(true);
   stopDictation();
   if (!state.child) return showView('onboard'), renderOnboard();
@@ -628,8 +640,60 @@ function shareAudioBtn(audio, pron, stress, w) {
   };
   return b;
 }
+// Удаления записей выполняются по очереди: каждое берёт слово из state.words уже после
+// предыдущего, иначе второе удаление вернуло бы запись, удалённую первым.
+let audioDelQueue = Promise.resolve();
+// Удаляет запись текущего произношения (hi = null) или элемента history[hi] слова с этим id.
+// Состояние меняется только после успешной записи в базу. Возвращает true, если удалили.
+async function deleteAudio(id, hi) {
+  const cur = state.words.find((x) => x.id === id);
+  if (!cur) return false;
+  const noAudio = (x) => ({ ...x, audio: null, audioType: '' });
+  const upd = hi === null
+    ? noAudio(cur)
+    : { ...cur, history: (cur.history || []).map((x, i) => (i === hi ? noAudio(x) : x)) };
+  upd.updatedAt = Date.now();
+  await dbPutWord(upd);
+  const i = state.words.findIndex((x) => x.id === id);
+  if (i >= 0) state.words[i] = upd;
+  return true;
+}
+// Плеер с кнопками «Поделиться» и «Удалить». После удаления убирается только этот плеер —
+// остальные записи карточки продолжают играть, прокрутка не сбрасывается.
+function audioBlock(audio, pron, stress, w, hi) {
+  const wrap = el('div', 'audio-item');
+  const url = cardAudioUrl(audio);
+  const a = el('audio'); a.controls = true; a.src = url; a.style.width = '100%';
+  const del = el('button', 'btn danger share-audio', '🗑 Удалить запись');
+  del.onclick = async () => {
+    const v = await ask(`Удалить запись «${display(pron, stress)}»? Это нельзя отменить.`,
+      [{ text: 'Удалить', cls: 'danger', value: true }, { text: 'Отмена', value: false }]);
+    if (!v) return;
+    del.disabled = true;
+    const job = audioDelQueue.then(() => deleteAudio(w.id, hi));
+    audioDelQueue = job.catch(() => {});
+    let ok;
+    try { ok = await job; } catch (_) { ok = false; }
+    if (!ok) { del.disabled = false; toast('Не удалось удалить запись'); return; }
+    a.pause(); wrap.remove();
+    URL.revokeObjectURL(url); cardUrls = cardUrls.filter((u) => u !== url);
+    toast('Запись удалена');
+    try { await touchChange(); } catch (_) { /* запись уже удалена; время изменения обновится при следующем сохранении */ }
+  };
+  const row = el('div', 'row audio-actions');
+  row.append(shareAudioBtn(audio, pron, stress, w), del);
+  wrap.append(a, row);
+  return wrap;
+}
+
+// Ссылки на аудио открытой карточки: освобождаются при перерисовке и уходе с карточки,
+// иначе Blob-ы держатся в памяти до перезагрузки страницы.
+let cardUrls = [];
+function cardAudioUrl(blob) { const u = URL.createObjectURL(blob); cardUrls.push(u); return u; }
+function releaseCardUrls() { for (const u of cardUrls) URL.revokeObjectURL(u); cardUrls = []; }
 
 function openCard(id) {
+  releaseCardUrls();
   const w = state.words.find((x) => x.id === id);
   if (!w) { location.hash = '#/'; return; }
   showView('card');
@@ -646,8 +710,8 @@ function openCard(id) {
   box.append(kv);
 
   if (w.audio) {
-    const a = el('audio'); a.controls = true; a.src = URL.createObjectURL(w.audio); a.style.width = '100%'; a.style.marginTop = '12px';
-    box.append(a, shareAudioBtn(w.audio, w.pron, w.stress, w));
+    const item = audioBlock(w.audio, w.pron, w.stress, w, null); item.style.marginTop = '12px';
+    box.append(item);
   }
   if (w.story) {
     box.append(el('h3', null, 'Как появилось слово'));
@@ -656,14 +720,11 @@ function openCard(id) {
   if (w.history && w.history.length) {
     box.append(el('h3', null, 'Раньше говорил(а)'));
     const ul = el('ul', 'history');
-    for (const h of w.history) {
+    w.history.forEach((h, hi) => {
       const li = el('li', null, `${display(h.pron, h.stress)} — до ${fmtShort(h.until)}`);
-      if (h.audio) {
-        const a = el('audio'); a.controls = true; a.src = URL.createObjectURL(h.audio); a.style.width = '100%';
-        li.append(a, shareAudioBtn(h.audio, h.pron, h.stress, w));
-      }
+      if (h.audio) li.append(audioBlock(h.audio, h.pron, h.stress, w, hi));
       ul.append(li);
-    }
+    });
     box.append(ul);
   }
   const edit = el('button', 'btn primary', 'Изменить'); edit.style.marginTop = '20px';
@@ -834,6 +895,13 @@ async function applyBackup(data) {
   const v = await ask(has ? `В копии ${n} слов${from}. Заменить ими текущие данные (${countWords()} слов)?` : `В копии ${n} слов${from}. Восстановить?`,
     [{ text: has ? 'Заменить' : 'Восстановить', cls: 'primary', value: true }, { text: 'Отмена', value: false }]);
   if (!v) return false;
+  restoreBusy++;
+  try {
+    return await replaceData(data);
+  } finally { restoreBusy--; }
+}
+let restoreBusy = 0; // идёт восстановление из копии — не перезагружать страницу ради обновления
+async function replaceData(data) {
   const words = [];
   for (const w of data.words) {
     const c = { ...w, audio: w.audio ? await dataUrlToBlob(w.audio) : null };
@@ -1115,10 +1183,11 @@ function requestPersist() { if (navigator.storage && navigator.storage.persist) 
 /* ================= Обновление приложения ================= */
 // Установленное приложение при «закрытии» часто лишь уходит в фон, и старый код работает дальше.
 // Поэтому при возврате в приложение проверяем обновление, а когда новая версия service worker
-// взяла управление — перезагружаем страницу. В форме слова и во время записи не перезагружаем
-// (потеряется ввод) — ждём перехода на другой экран.
+// взяла управление — перезагружаем страницу. В форме слова, во время записи голоса, при открытом
+// вопросе и пока идёт запись в базу не перезагружаем (потеряется ввод или изменение) — ждём перехода
+// на другой экран.
 let updateReady = false;
-function canReloadNow() { return $('view-form').hidden && !recorder && !driveBusy; }
+function canReloadNow() { return $('view-form').hidden && $('modal').hidden && !recorder && !driveBusy && !restoreBusy && !dbWrites; }
 function setupUpdates() {
   if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
   const hadController = !!navigator.serviceWorker.controller; // при первой установке перезагружать незачем
