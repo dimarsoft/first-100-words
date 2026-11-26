@@ -1002,13 +1002,14 @@ function makeProgress(after, verb) {
 }
 
 // Для кнопок: блокирует кнопку на время операции и показывает ошибку.
+let driveBusy = 0; // идёт обмен с Диском — не перезагружать страницу ради обновления
 async function driveAction(btn, label, fn) {
   if (btn.disabled) return;
   const text = btn.textContent;
-  btn.disabled = true; btn.textContent = label;
+  btn.disabled = true; btn.textContent = label; driveBusy++;
   try { await fn(); }
   catch (e) { toast(e.message || 'Ошибка Google Диска'); }
-  finally { btn.disabled = false; btn.textContent = text; }
+  finally { btn.disabled = false; btn.textContent = text; driveBusy--; }
 }
 
 async function renderDrive() {
@@ -1108,5 +1109,26 @@ function requestPersist() { if (navigator.storage && navigator.storage.persist) 
   }
   if (state.child) requestPersist();
   route();
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  setupUpdates();
 })();
+
+/* ================= Обновление приложения ================= */
+// Установленное приложение при «закрытии» часто лишь уходит в фон, и старый код работает дальше.
+// Поэтому при возврате в приложение проверяем обновление, а когда новая версия service worker
+// взяла управление — перезагружаем страницу. В форме слова и во время записи не перезагружаем
+// (потеряется ввод) — ждём перехода на другой экран.
+let updateReady = false;
+function canReloadNow() { return $('view-form').hidden && !recorder && !driveBusy; }
+function setupUpdates() {
+  if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+  const hadController = !!navigator.serviceWorker.controller; // при первой установке перезагружать незачем
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || updateReady) return;
+    updateReady = true;
+    if (canReloadNow()) location.reload();
+  });
+  window.addEventListener('hashchange', () => { if (updateReady && canReloadNow()) location.reload(); });
+}
