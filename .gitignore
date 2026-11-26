@@ -2,3 +2,9 @@ slova-kopiya-*.json
 slovar-*.csv
 *.json.bak
 client_secret_*.json
+
+# Автотесты (uv, Playwright)
+.venv/
+__pycache__/
+.pytest_cache/
+test-results/

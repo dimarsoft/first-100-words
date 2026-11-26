@@ -1,0 +1,20 @@
+# Только для автотестов (Playwright): само приложение — статические файлы в docs/, сборки нет.
+# Запуск: uv run playwright install chromium (один раз), затем uv run pytest.
+[project]
+name = "first-100-words-tests"
+version = "0"
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-playwright>=0.7",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--browser chromium"

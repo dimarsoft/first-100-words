@@ -27,10 +27,33 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: python3 .github/check.py "$BASE"
 
+  # Автотесты в браузере (Playwright, tests/): сценарии на экране телефона с поддельными
+  # микрофоном, Google и Диском. При падении — трассы в артефакте test-results.
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.4.0
+
+      - name: Зависимости и Chromium
+        run: |
+          uv sync --locked
+          uv run playwright install --with-deps chromium
+
+      - name: Автотесты
+        run: uv run pytest -p no:warnings --tracing retain-on-failure
+
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+
   # Сборка и публикация — разные задачи (как в шаблоне GitHub): если искать артефакт
   # в той же задаче сразу после загрузки, deploy-pages иногда его не находит.
   build:
-    needs: check
+    needs: [check, tests]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
