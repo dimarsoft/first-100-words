@@ -613,6 +613,22 @@ $('f-save').onclick = () => saveWord(false);
 $('f-draft').onclick = () => saveWord(true);
 
 /* ================= Карточка ================= */
+// «Поделиться» аудиозаписью (Telegram, WhatsApp, почта…); без поддержки Web Share — скачивание файла.
+const AUDIO_EXT = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg', 'audio/mpeg': 'mp3' };
+function shareAudioBtn(audio, pron, stress, w) {
+  const b = el('button', 'btn share-audio', '📤 Поделиться записью');
+  b.onclick = () => {
+    const said = display(pron, stress);
+    const ext = AUDIO_EXT[(audio.type || '').split(';')[0]] || 'webm';
+    const safe = (s) => s.replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '');
+    const name = `${safe(said)}-${safe(w.meaning)}-${w.date}.${ext}`;
+    const age = ageAt(w.date);
+    const text = `«${said}» — ${w.meaning}, ${fmtLong(w.date)}${age ? ` (${age})` : ''}`;
+    shareOrDownload(audio, name, `«${said}» — ${w.meaning}`, text);
+  };
+  return b;
+}
+
 function openCard(id) {
   const w = state.words.find((x) => x.id === id);
   if (!w) { location.hash = '#/'; return; }
@@ -631,7 +647,7 @@ function openCard(id) {
 
   if (w.audio) {
     const a = el('audio'); a.controls = true; a.src = URL.createObjectURL(w.audio); a.style.width = '100%'; a.style.marginTop = '12px';
-    box.append(a);
+    box.append(a, shareAudioBtn(w.audio, w.pron, w.stress, w));
   }
   if (w.story) {
     box.append(el('h3', null, 'Как появилось слово'));
@@ -644,7 +660,7 @@ function openCard(id) {
       const li = el('li', null, `${display(h.pron, h.stress)} — до ${fmtShort(h.until)}`);
       if (h.audio) {
         const a = el('audio'); a.controls = true; a.src = URL.createObjectURL(h.audio); a.style.width = '100%';
-        li.append(a);
+        li.append(a, shareAudioBtn(h.audio, h.pron, h.stress, w));
       }
       ul.append(li);
     }
@@ -781,10 +797,11 @@ function needBackupReminder() {
 const blobToDataUrl = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
 const dataUrlToBlob = async (u) => (await fetch(u)).blob();
 
-async function shareOrDownload(blob, filename, title) {
-  const file = new File([blob], filename, { type: blob.type });
+async function shareOrDownload(blob, filename, title, text) {
+  // Тип без параметров («audio/webm;codecs=opus» → «audio/webm»): с ними Android может отказать в «Поделиться».
+  const file = new File([blob], filename, { type: (blob.type || '').split(';')[0] });
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title }); return true; }
+    try { await navigator.share(text ? { files: [file], title, text } : { files: [file], title }); return true; }
     catch (e) { if (e.name === 'AbortError') return false; }
   }
   const a = el('a'); a.href = URL.createObjectURL(blob); a.download = filename;
