@@ -221,6 +221,8 @@ function renderOnboard() {
   birth.max = todayStr();
   const check = () => { $('ob-save').disabled = !birth.value || birth.value > todayStr(); };
   birth.oninput = check; check();
+  $('ob-drive').hidden = !GOOGLE_CLIENT_ID;
+  preloadGis();
   $('ob-save').onclick = async () => {
     if (!birth.value || birth.value > todayStr()) return;
     state.child = { name: $('ob-name').value.trim(), birth: birth.value };
@@ -715,6 +717,7 @@ function renderSettings() {
       $('s-storage').textContent = p ? 'Данные защищены от автоочистки браузером.' : 'Браузер может очистить данные при нехватке места — делайте резервные копии.';
     });
   }
+  renderDrive();
   renderAppVersion();
 }
 
@@ -760,7 +763,7 @@ async function shareOrDownload(blob, filename, title) {
   return true;
 }
 
-$('s-backup').onclick = async () => {
+async function makeBackupBlob() {
   const words = [];
   for (const w of state.words) {
     const c = { ...w, audio: w.audio ? await blobToDataUrl(w.audio) : null };
@@ -768,26 +771,22 @@ $('s-backup').onclick = async () => {
     words.push(c);
   }
   const data = { app: 'first100', format: 1, exportedAt: new Date().toISOString(), child: state.child, celebrated: state.celebrated, words };
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-  const ok = await shareOrDownload(blob, `slova-kopiya-${todayStr()}.json`, 'Первые 100 слов — резервная копия');
-  if (ok) {
-    state.lastBackupAt = Date.now();
-    await dbSetMeta('lastBackupAt', state.lastBackupAt);
-    renderSettings();
-    toast('Копия сохранена');
-  }
-};
+  return new Blob([JSON.stringify(data)], { type: 'application/json' });
+}
+async function markBackedUp() {
+  state.lastBackupAt = Date.now();
+  await dbSetMeta('lastBackupAt', state.lastBackupAt);
+}
 
-$('s-restore').onclick = () => $('s-restore-file').click();
-$('s-restore-file').onchange = async (e) => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  let data;
-  try { data = JSON.parse(await f.text()); } catch (_) { toast('Не удалось прочитать файл'); return; }
-  if (data.app !== 'first100' || !Array.isArray(data.words)) { toast('Это не резервная копия «Первых 100 слов»'); return; }
-  const v = await ask(`В копии ${data.words.filter((w) => !w.draft).length} слов от ${fmtLong(data.exportedAt.slice(0, 10))}. Заменить ими текущие данные (${countWords()} слов)?`,
-    [{ text: 'Заменить', cls: 'primary', value: true }, { text: 'Отмена', value: false }]);
-  if (!v) return;
+// Спрашивает подтверждение и заменяет текущие данные данными из копии. Возвращает true, если заменили.
+async function applyBackup(data) {
+  if (!data || data.app !== 'first100' || !Array.isArray(data.words)) { toast('Это не резервная копия «Первых 100 слов»'); return false; }
+  const n = data.words.filter((w) => !w.draft).length;
+  const from = data.exportedAt ? ` от ${fmtLong(data.exportedAt.slice(0, 10))}` : '';
+  const has = state.words.length > 0;
+  const v = await ask(has ? `В копии ${n} слов${from}. Заменить ими текущие данные (${countWords()} слов)?` : `В копии ${n} слов${from}. Восстановить?`,
+    [{ text: has ? 'Заменить' : 'Восстановить', cls: 'primary', value: true }, { text: 'Отмена', value: false }]);
+  if (!v) return false;
   const words = [];
   for (const w of data.words) {
     const c = { ...w, audio: w.audio ? await dataUrlToBlob(w.audio) : null };
@@ -797,11 +796,166 @@ $('s-restore-file').onchange = async (e) => {
   await dbReq('words', 'readwrite', (s) => s.clear());
   for (const w of words) await dbPutWord(w);
   state.words = words;
-  if (data.child) { state.child = data.child; await dbSetMeta('child', state.child); }
+  if (data.child) { state.child = data.child; await dbSetMeta('child', state.child); requestPersist(); }
   state.celebrated = Array.isArray(data.celebrated) ? data.celebrated : [];
   await dbSetMeta('celebrated', state.celebrated);
-  state.lastBackupAt = Date.now(); await dbSetMeta('lastBackupAt', state.lastBackupAt);
+  await markBackedUp();
   toast('Данные восстановлены');
+  return true;
+}
+
+$('s-backup').onclick = async () => {
+  const blob = await makeBackupBlob();
+  const ok = await shareOrDownload(blob, `slova-kopiya-${todayStr()}.json`, 'Первые 100 слов — резервная копия');
+  if (ok) {
+    await markBackedUp();
+    renderSettings();
+    toast('Копия сохранена');
+  }
+};
+
+async function restoreFromFile(f) {
+  if (!f) return;
+  let data;
+  try { data = JSON.parse(await f.text()); } catch (_) { toast('Не удалось прочитать файл'); return; }
+  if (await applyBackup(data)) route();
+}
+$('s-restore').onclick = () => $('s-restore-file').click();
+$('s-restore-file').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; restoreFromFile(f); };
+$('ob-restore').onclick = () => $('ob-restore-file').click();
+$('ob-restore-file').onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; restoreFromFile(f); };
+
+/* ================= Google Диск ================= */
+// Вход через Google Identity Services: токен примерно на час, без серверной части.
+// Доступ drive.file: приложение видит только файлы, которые создало само, — остальной Диск ему недоступен.
+// Client ID (тип «Веб-приложение») из Google Cloud Console — не секрет, его можно хранить в коде.
+// Пустая строка — кнопки Google Диска скрыты.
+const GOOGLE_CLIENT_ID = '';
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILE_NAME = 'Первые 100 слов — копия.json';
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
+const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+let gisLoading = null;
+let driveToken = null; // { token, exp }
+
+function loadGis() {
+  if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  if (!gisLoading) {
+    gisLoading = new Promise((resolve, reject) => {
+      const s = el('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      s.onload = resolve;
+      s.onerror = () => { gisLoading = null; s.remove(); reject(new Error('Нет связи с Google')); };
+      document.head.append(s);
+    });
+  }
+  return gisLoading;
+}
+// Библиотеку входа грузим заранее, чтобы окно Google открылось сразу по нажатию (иначе браузер может его заблокировать).
+function preloadGis() { if (GOOGLE_CLIENT_ID && navigator.onLine) loadGis().catch(() => {}); }
+
+async function driveAuth() {
+  if (driveToken && driveToken.exp > Date.now() + 60e3) return driveToken.token;
+  if (!navigator.onLine) throw new Error('Нет интернета');
+  await loadGis();
+  const linked = await dbGetMeta('driveLinked');
+  return new Promise((resolve, reject) => {
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: DRIVE_SCOPE,
+      callback: (r) => {
+        if (r.error) { reject(new Error('Google не дал доступ')); return; }
+        if (!google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_SCOPE)) {
+          reject(new Error('Нужно разрешить доступ к Google Диску (галочка в окне Google)')); return;
+        }
+        driveToken = { token: r.access_token, exp: Date.now() + (Number(r.expires_in) || 3600) * 1000 };
+        dbSetMeta('driveLinked', true);
+        resolve(driveToken.token);
+      },
+      error_callback: (e) => reject(new Error(
+        e && e.type === 'popup_failed_to_open' ? 'Браузер не открыл окно Google — нажмите ещё раз'
+          : e && e.type === 'popup_closed' ? 'Вход в Google отменён' : 'Не удалось войти в Google')),
+    });
+    client.requestAccessToken({ prompt: linked ? '' : 'consent' });
+  });
+}
+
+async function driveFetch(url, opts = {}) {
+  const token = await driveAuth();
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + token } });
+  if (r.status === 401) { driveToken = null; throw new Error('Вход в Google устарел — нажмите ещё раз'); }
+  if (!r.ok) throw new Error(`Google Диск ответил ошибкой ${r.status}`);
+  return r;
+}
+async function driveFindFile() {
+  const q = encodeURIComponent(`name = '${DRIVE_FILE_NAME}' and trashed = false`);
+  const r = await driveFetch(`${DRIVE_API}?q=${q}&orderBy=modifiedTime%20desc&pageSize=1&fields=files(id,modifiedTime)`);
+  return (await r.json()).files[0] || null;
+}
+// Возобновляемая загрузка: копия с аудио бывает больше 5 МБ (предел обычной загрузки).
+async function driveSave(blob) {
+  const f = await driveFindFile();
+  const start = await driveFetch(f ? `${DRIVE_UPLOAD}/${f.id}?uploadType=resumable` : `${DRIVE_UPLOAD}?uploadType=resumable`, {
+    method: f ? 'PATCH' : 'POST',
+    headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/json' },
+    body: JSON.stringify(f ? {} : { name: DRIVE_FILE_NAME, mimeType: 'application/json' }),
+  });
+  const session = start.headers.get('Location');
+  if (!session) throw new Error('Google Диск не принял файл');
+  const r = await fetch(session, { method: 'PUT', body: blob });
+  if (!r.ok) throw new Error(`Google Диск ответил ошибкой ${r.status}`);
+}
+async function driveLoad() {
+  const f = await driveFindFile();
+  if (!f) return null;
+  return (await driveFetch(`${DRIVE_API}/${f.id}?alt=media`)).json();
+}
+
+// Для кнопок: блокирует кнопку на время операции и показывает ошибку.
+async function driveAction(btn, label, fn) {
+  if (btn.disabled) return;
+  const text = btn.textContent;
+  btn.disabled = true; btn.textContent = label;
+  try { await fn(); }
+  catch (e) { toast(e.message || 'Ошибка Google Диска'); }
+  finally { btn.disabled = false; btn.textContent = text; }
+}
+
+async function renderDrive() {
+  $('s-drive-box').hidden = !GOOGLE_CLIENT_ID;
+  if (!GOOGLE_CLIENT_ID) return;
+  preloadGis();
+  const linked = await dbGetMeta('driveLinked');
+  const at = await dbGetMeta('driveSavedAt');
+  $('s-drive-off').hidden = !linked;
+  $('s-drive-info').textContent = !linked
+    ? 'Копия хранится в вашем Google Диске — её можно загрузить на новом телефоне. Приложение видит только свой файл, остальной Диск ему недоступен.'
+    : at ? `Последнее сохранение на Диск: ${fmtLong(dateToStr(new Date(at)))}.` : 'Google Диск подключён. На Диск ещё ничего не сохранялось.';
+}
+
+$('s-drive-save').onclick = () => driveAction($('s-drive-save'), 'Сохраняю…', async () => {
+  await driveSave(await makeBackupBlob());
+  await dbSetMeta('driveSavedAt', Date.now());
+  await markBackedUp();
+  renderSettings();
+  toast('Сохранено на Google Диск');
+});
+function restoreFromDrive(btn) {
+  return driveAction(btn, 'Загружаю…', async () => {
+    const data = await driveLoad();
+    if (!data) { toast('На Google Диске нет копии этого приложения'); return; }
+    if (await applyBackup(data)) route();
+  });
+}
+$('s-drive-load').onclick = () => restoreFromDrive($('s-drive-load'));
+$('ob-drive').onclick = () => restoreFromDrive($('ob-drive'));
+$('s-drive-off').onclick = async () => {
+  const v = await ask('Отключить Google Диск? Копия на Диске останется, приложение перестанет к ней обращаться.',
+    [{ text: 'Отключить', cls: 'primary', value: true }, { text: 'Отмена', value: false }]);
+  if (!v) return;
+  if (driveToken && window.google && google.accounts && google.accounts.oauth2) google.accounts.oauth2.revoke(driveToken.token, () => {});
+  driveToken = null;
+  await dbSetMeta('driveLinked', false);
+  await dbSetMeta('driveSavedAt', 0);
   renderSettings();
 };
 

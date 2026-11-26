@@ -28,6 +28,11 @@
     </label>
     <p class="hint" id="ob-hint">Нужна, чтобы показывать возраст, в котором появилось каждое слово.</p>
     <button id="ob-save" class="btn primary big" disabled>Начать</button>
+
+    <p class="hint">Уже вели дневник на другом телефоне?</p>
+    <button id="ob-drive" class="btn" hidden>Загрузить с Google Диска</button>
+    <button id="ob-restore" class="btn">Восстановить из файла копии</button>
+    <input id="ob-restore-file" type="file" accept=".json,application/json" hidden>
   </div>
 </section>
 
@@ -146,6 +151,14 @@
     <button id="s-restore" class="btn">Восстановить из копии</button>
     <input id="s-restore-file" type="file" accept=".json,application/json" hidden>
 
+    <div id="s-drive-box" hidden>
+      <h3>Google Диск</h3>
+      <p class="hint" id="s-drive-info"></p>
+      <button id="s-drive-save" class="btn primary">Сохранить на Google Диск</button>
+      <button id="s-drive-load" class="btn">Загрузить с Google Диска</button>
+      <button id="s-drive-off" class="btn ghost" hidden>Отключить Google Диск</button>
+    </div>
+
     <h3>Для специалиста</h3>
     <button id="s-csv" class="btn">Таблица (Excel, CSV)</button>
     <button id="s-print" class="btn">Распечатать / PDF</button>
@@ -154,6 +167,7 @@
 
     <h3>О приложении</h3>
     <p class="hint" id="s-version"></p>
+    <p class="hint"><a href="privacy.html">Политика конфиденциальности</a></p>
   </div>
 </section>
 
