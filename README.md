@@ -10,5 +10,29 @@
 - Приложение: папка `docs/` (обычные HTML/CSS/JS, без сборки).
 - Требования: `requirements.md`.
 - Политика конфиденциальности: `docs/privacy.html`.
-- CI: `.github/workflows/ci.yml` — проверки на каждый push/PR и публикация на GitHub Pages при push в `main`.
-- Версия — git-тег `vX.Y.Z`: `git tag v0.4.0 && git push --atomic origin main v0.4.0`.
+- Автотесты: папка `tests/` (Playwright для Python, окружение через [uv](https://docs.astral.sh/uv/)).
+- CI: `.github/workflows/ci.yml` — проверки и автотесты на каждый push/PR, публикация на GitHub Pages
+  при push в `main`, только если всё прошло.
+- Версия — git-тег `vX.Y.Z`: `git tag v0.5.0 && git push --atomic origin main v0.5.0`.
+
+## Автотесты
+
+Сценарии в браузере на экране телефона (390×844): слова и ударение, черновики, рубежи, карточка
+и удаление записей голоса, «Поделиться», резервная копия и восстановление, CSV, Google Диск,
+запись голоса и автостоп через минуту, работа без сети и автообновление.
+Микрофон, вход в Google и Google Диск — поддельные, часы подменяются (минуту ждать не нужно).
+Настоящий вход в Google, настоящий микрофон и «Поделиться» на Android проверяются только руками на телефоне.
+
+```sh
+uv sync                              # один раз: окружение
+uv run playwright install chromium   # один раз: браузер
+uv run pytest                        # все тесты
+uv run pytest tests/test_card.py     # один файл
+uv run pytest -k back_closes         # тесты по имени
+uv run pytest --headed               # с окном браузера
+uv run pytest --browser-channel chrome   # на установленном Chrome, без скачивания Chromium
+```
+
+Сервер для `docs/` тесты поднимают сами. У каждого теста — новый контекст браузера с пустой базой.
+Если тест упал в CI, его трасса (действия, снимки экрана, сеть) лежит в артефакте `test-results`
+запуска: `uv run playwright show-trace trace.zip`.
