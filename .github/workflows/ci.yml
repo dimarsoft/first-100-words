@@ -27,19 +27,12 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: python3 .github/check.py "$BASE"
 
-  deploy:
+  # Сборка и публикация — разные задачи (как в шаблоне GitHub): если искать артефакт
+  # в той же задаче сразу после загрузки, deploy-pages иногда его не находит.
+  build:
     needs: check
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: pages
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
         with:
@@ -56,9 +49,22 @@ jobs:
           PY
           cat docs/git-info.json
 
-      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
           path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
