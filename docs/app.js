@@ -830,7 +830,7 @@ $('ob-restore-file').onchange = (e) => { const f = e.target.files[0]; e.target.v
 // Доступ drive.file: приложение видит только файлы, которые создало само, — остальной Диск ему недоступен.
 // Client ID (тип «Веб-приложение») из Google Cloud Console — не секрет, его можно хранить в коде.
 // Пустая строка — кнопки Google Диска скрыты.
-const GOOGLE_CLIENT_ID = '';
+const GOOGLE_CLIENT_ID = '22359309660-a6nvvkdqm97lsdj66uouko0fl2ubnqes.apps.googleusercontent.com';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FILE_NAME = 'Первые 100 слов — копия.json';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
