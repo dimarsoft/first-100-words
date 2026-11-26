@@ -5,6 +5,8 @@ const VOWELS = 'аеёиоуыэюя';
 const MILESTONES = [10, 30, 50, 80, 100];
 const GOAL = 100;
 const MAX_AUDIO_SEC = 60;
+// Битрейт записи: Opus 32 кбит/с — голос разборчив, минута ≈ 0,23 МБ (по умолчанию Chrome пишет 128 кбит/с ≈ 0,9 МБ).
+const AUDIO_BPS = 32000;
 const BACKUP_REMIND_DAYS = 14;
 const SCHEMA = 1; // версия формата записи слова
 const MONTHS_SHORT = ['янв', 'февр', 'мар', 'апр', 'мая', 'июня', 'июля', 'авг', 'сент', 'окт', 'нояб', 'дек'];
@@ -484,7 +486,9 @@ async function startRecording() {
   } catch (_) { toast('Нет доступа к микрофону'); return; }
   const mime = pickMime();
   const chunks = [];
-  recorder = new MediaRecorder(recStream, mime ? { mimeType: mime } : undefined);
+  const opts = { audioBitsPerSecond: AUDIO_BPS };
+  if (mime) opts.mimeType = mime;
+  recorder = new MediaRecorder(recStream, opts);
   recorder._done = new Promise((res) => { recorder._resolve = res; });
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   recorder.onstop = () => {
@@ -705,6 +709,31 @@ function renderStats() {
 }
 
 /* ================= Настройки, копии, экспорт ================= */
+function fmtBytes(b) {
+  if (!b) return '0 КБ';
+  if (b < 1048576) return `${Math.max(1, Math.round(b / 1024))} КБ`;
+  return `${(b / 1048576).toFixed(b < 10485760 ? 1 : 0).replace('.', ',')} МБ`;
+}
+function fmtDuration(s) {
+  s = Math.max(1, Math.round(s));
+  return s < 60 ? `${s} с` : `${Math.floor(s / 60)} мин${s % 60 ? ` ${s % 60} с` : ''}`;
+}
+// Сколько занимают данные и какой получится копия (аудио в копии — base64, это +⅓).
+function dataSizes() {
+  let audio = 0, records = 0, text = 0;
+  for (const w of state.words) {
+    for (const a of [w.audio, ...(w.history || []).map((h) => h.audio)]) if (a) { audio += a.size; records++; }
+    text += JSON.stringify({ ...w, audio: null, history: (w.history || []).map((h) => ({ ...h, audio: null })) }).length;
+  }
+  return { records, total: audio + text, backup: Math.ceil(audio * 4 / 3) + text + records * 30 };
+}
+function renderSize() {
+  const s = dataSizes();
+  $('s-size').textContent = state.words.length
+    ? `Слов: ${countWords()}, аудиозаписей: ${s.records} — около ${fmtBytes(s.total)} на телефоне. Размер копии — около ${fmtBytes(s.backup)}.`
+    : '';
+}
+
 function renderSettings() {
   $('s-name').value = state.child.name || '';
   $('s-birth').value = state.child.birth || '';
@@ -717,6 +746,7 @@ function renderSettings() {
       $('s-storage').textContent = p ? 'Данные защищены от автоочистки браузером.' : 'Браузер может очистить данные при нехватке места — делайте резервные копии.';
     });
   }
+  renderSize();
   renderDrive();
   renderAppVersion();
 }
@@ -888,11 +918,23 @@ async function driveFetch(url, opts = {}) {
 }
 async function driveFindFile() {
   const q = encodeURIComponent(`name = '${DRIVE_FILE_NAME}' and trashed = false`);
-  const r = await driveFetch(`${DRIVE_API}?q=${q}&orderBy=modifiedTime%20desc&pageSize=1&fields=files(id,modifiedTime)`);
+  const r = await driveFetch(`${DRIVE_API}?q=${q}&orderBy=modifiedTime%20desc&pageSize=1&fields=files(id,modifiedTime,size)`);
   return (await r.json()).files[0] || null;
 }
+// XMLHttpRequest вместо fetch — ради событий прогресса отправки и получения.
+function xhr(method, url, { body = null, headers = {}, onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open(method, url);
+    for (const [k, v] of Object.entries(headers)) x.setRequestHeader(k, v);
+    if (onProgress) (method === 'GET' ? x : x.upload).onprogress = (e) => onProgress(e.loaded, e.lengthComputable ? e.total : 0);
+    x.onload = () => resolve(x);
+    x.onerror = x.ontimeout = () => reject(new Error('Связь с Google Диском прервалась — попробуйте ещё раз'));
+    x.send(body);
+  });
+}
 // Возобновляемая загрузка: копия с аудио бывает больше 5 МБ (предел обычной загрузки).
-async function driveSave(blob) {
+async function driveSave(blob, onProgress) {
   const f = await driveFindFile();
   const start = await driveFetch(f ? `${DRIVE_UPLOAD}/${f.id}?uploadType=resumable` : `${DRIVE_UPLOAD}?uploadType=resumable`, {
     method: f ? 'PATCH' : 'POST',
@@ -901,13 +943,45 @@ async function driveSave(blob) {
   });
   const session = start.headers.get('Location');
   if (!session) throw new Error('Google Диск не принял файл');
-  const r = await fetch(session, { method: 'PUT', body: blob });
-  if (!r.ok) throw new Error(`Google Диск ответил ошибкой ${r.status}`);
+  const r = await xhr('PUT', session, { body: blob, onProgress });
+  if (r.status !== 200 && r.status !== 201) throw new Error(`Google Диск ответил ошибкой ${r.status}`);
 }
-async function driveLoad() {
+// onStart(size) вызывается, когда известен размер файла на Диске.
+async function driveLoad(onStart, onProgress) {
   const f = await driveFindFile();
   if (!f) return null;
-  return (await driveFetch(`${DRIVE_API}/${f.id}?alt=media`)).json();
+  const size = Number(f.size) || 0;
+  if (onStart) onStart(size);
+  const token = await driveAuth();
+  const r = await xhr('GET', `${DRIVE_API}/${f.id}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + token },
+    onProgress: onProgress && ((done, total) => onProgress(done, total || size)),
+  });
+  if (r.status === 401) { driveToken = null; throw new Error('Вход в Google устарел — нажмите ещё раз'); }
+  if (r.status !== 200) throw new Error(`Google Диск ответил ошибкой ${r.status}`);
+  try { return JSON.parse(r.responseText); } catch (_) { throw new Error('Файл на Google Диске повреждён'); }
+}
+
+// Полоса прогресса под кнопкой: объём, проценты и оставшееся время (по средней скорости).
+const PROGRESS_MIN_BYTES = 1048576; // для копий меньше 1 МБ прогресс не показываем — они уходят за секунды
+function makeProgress(after, verb) {
+  const box = el('div', 'progress');
+  const bar = el('div', 'bar'), fill = el('div', 'bar-fill'), txt = el('p', 'hint');
+  bar.append(fill); box.append(bar, txt); after.after(box);
+  const t0 = Date.now();
+  let wake = null;
+  if (navigator.wakeLock) navigator.wakeLock.request('screen').then((w) => { wake = w; }).catch(() => {});
+  return {
+    set(done, total) {
+      if (!total) { txt.textContent = `${verb}: ${fmtBytes(done)}`; return; }
+      const pct = Math.min(100, Math.floor(done / total * 100));
+      fill.style.width = pct + '%';
+      const sec = (Date.now() - t0) / 1000;
+      const left = done > 0 && sec > 2 ? ` · осталось ≈ ${fmtDuration((total - done) / (done / sec))}` : '';
+      txt.textContent = `${verb}: ${fmtBytes(done)} из ${fmtBytes(total)} · ${pct}%${done >= total ? ' · Google Диск сохраняет файл…' : left}`;
+    },
+    remove() { box.remove(); if (wake) wake.release().catch(() => {}); },
+  };
 }
 
 // Для кнопок: блокирует кнопку на время операции и показывает ошибку.
@@ -932,16 +1006,27 @@ async function renderDrive() {
     : at ? `Последнее сохранение на Диск: ${fmtLong(dateToStr(new Date(at)))}.` : 'Google Диск подключён. На Диск ещё ничего не сохранялось.';
 }
 
-$('s-drive-save').onclick = () => driveAction($('s-drive-save'), 'Сохраняю…', async () => {
-  await driveSave(await makeBackupBlob());
+$('s-drive-save').onclick = () => driveAction($('s-drive-save'), 'Готовлю копию…', async () => {
+  const btn = $('s-drive-save');
+  const blob = await makeBackupBlob();
+  btn.textContent = 'Сохраняю…';
+  const p = blob.size >= PROGRESS_MIN_BYTES ? makeProgress(btn, 'Отправлено') : null;
+  if (p) p.set(0, blob.size);
+  try { await driveSave(blob, p && p.set); } finally { if (p) p.remove(); }
   await dbSetMeta('driveSavedAt', Date.now());
   await markBackedUp();
   renderSettings();
-  toast('Сохранено на Google Диск');
+  toast(`Сохранено на Google Диск (${fmtBytes(blob.size)})`);
 });
 function restoreFromDrive(btn) {
   return driveAction(btn, 'Загружаю…', async () => {
-    const data = await driveLoad();
+    let p = null;
+    let data;
+    try {
+      data = await driveLoad(
+        (size) => { if (size >= PROGRESS_MIN_BYTES) { p = makeProgress(btn, 'Получено'); p.set(0, size); } },
+        (done, total) => p && p.set(done, total));
+    } finally { if (p) p.remove(); }
     if (!data) { toast('На Google Диске нет копии этого приложения'); return; }
     if (await applyBackup(data)) route();
   });
