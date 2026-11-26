@@ -1,6 +1,6 @@
 // Офлайн-кэш оболочки приложения. При изменении файлов — увеличить номер версии.
-const CACHE = 'first100-v12';
-const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'words.js', 'git-info.json', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'privacy.html'];
+const CACHE = 'first100-v13';
+const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'words.js', 'git-info.json', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'privacy.html', 'about.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));

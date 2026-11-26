@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#e8735a">
+<meta name="description" content="Первые 100 слов (First100Words) — бесплатный дневник первых слов ребёнка. Данные хранятся на телефоне; резервная копия — в Google Диске пользователя.">
+<title>Первые 100 слов (First100Words) — дневник первых слов ребёнка</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .page { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; line-height: 1.55; }
+  .page h1 { font-size: 28px; margin: 0 0 4px; }
+  .page h2 { font-size: 20px; margin: 28px 0 8px; }
+  .page ul { padding-left: 22px; }
+  .page li { margin: 4px 0; }
+  .page a { color: var(--accent); }
+  .page .cta { display: inline-block; margin: 16px 0 4px; padding: 13px 22px; border-radius: 12px; background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
+  .page hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+</style>
+</head>
+<body>
+<main class="page">
+  <h1>💬 Первые 100 слов</h1>
+  <p class="muted">First100Words — дневник первых слов ребёнка</p>
+
+  <p>«Первые 100 слов» — бесплатное приложение для родителей. Оно помогает записывать первые слова малыша:
+    как ребёнок произносит слово, что оно значит, когда появилось, и по желанию — короткую аудиозапись.
+    Приложение считает слова до 100, поздравляет на рубежах 10, 30, 50, 80 и 100 слов, показывает статистику
+    и готовит таблицу для логопеда или педиатра.</p>
+  <a class="cta" href="./">Открыть приложение</a>
+  <p class="hint">Работает в браузере телефона, без регистрации; можно добавить на главный экран Android.</p>
+
+  <h2>Возможности</h2>
+  <ul>
+    <li>Запись слова: детское произношение с ударением, значение, дата, «сам или повторил», рассказ о том, как слово появилось.</li>
+    <li>Аудиозапись голоса ребёнка до 60 секунд; запись можно отправить родным через «Поделиться».</li>
+    <li>Статистика: первое слово, слова по месяцам, возраст на каждом рубеже.</li>
+    <li>Таблица для специалиста: CSV для Excel или печать / PDF.</li>
+    <li>Резервная копия файлом или в ваш Google Диск — чтобы перенести дневник на новый телефон.</li>
+  </ul>
+
+  <h2>Данные и Google Диск</h2>
+  <ul>
+    <li>Все данные хранятся на телефоне. У приложения нет сервера, регистрации, рекламы и аналитики.</li>
+    <li>Google Диск используется только по нажатию «Сохранить на Google Диск» / «Загрузить с Google Диска»:
+      приложение создаёт в вашем Диске один файл с копией дневника и читает только его
+      (доступ <code>drive.file</code>; остальные файлы Диска ему недоступны).</li>
+    <li>Приложение не использует ИИ, не создаёт и не обрабатывает изображения.</li>
+  </ul>
+  <p><a href="privacy.html">Политика конфиденциальности</a> ·
+    <a href="https://github.com/dimarsoft/first-100-words" target="_blank" rel="noopener">Исходный код</a></p>
+
+  <hr>
+
+  <section lang="en">
+    <h1>💬 First100Words</h1>
+    <p class="muted">«Первые 100 слов» — a diary of a child's first words</p>
+    <p>First100Words is a free app for parents to record their child's first words: how the child pronounces a word,
+      what it means, when it first appeared and, optionally, a short audio clip. The app counts words up to 100,
+      celebrates milestones (10, 30, 50, 80, 100 words), shows statistics and prepares a table for a speech therapist
+      or pediatrician. The interface is in Russian.</p>
+    <a class="cta" href="./">Open the app</a>
+    <p class="hint">Runs in the phone browser with no sign-up; can be added to the Android home screen.</p>
+
+    <h2>How the app uses Google data</h2>
+    <ul>
+      <li>All diary data is stored on the user's phone. The app has no server, no accounts, no ads and no analytics.</li>
+      <li>Google Drive is used only when the user taps “Save to Google Drive” or “Load from Google Drive”.
+        The app requests the <code>https://www.googleapis.com/auth/drive.file</code> scope, creates a single backup file
+        in the user's own Drive and reads only that file. It cannot see any other files in the user's Drive.</li>
+      <li>The app does not use AI and does not create or process images.</li>
+    </ul>
+    <p><a href="privacy.html#en">Privacy Policy</a> ·
+      <a href="https://github.com/dimarsoft/first-100-words" target="_blank" rel="noopener">Source code</a></p>
+  </section>
+</main>
+</body>
+</html>

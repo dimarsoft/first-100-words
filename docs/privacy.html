@@ -19,7 +19,7 @@
 <body>
 <main class="policy">
   <h1>Политика конфиденциальности</h1>
-  <p class="muted">Приложение «Первые 100 слов». Действует с 26 ноября 2026 года.</p>
+  <p class="muted">Приложение «Первые 100 слов» (First100Words). Действует с 26 ноября 2026 года. <a href="#en">English version</a></p>
 
   <p>«Первые 100 слов» — бесплатное приложение-дневник, в котором родители записывают первые слова ребёнка.
     Мы не собираем, не храним и не передаём ваши данные. Ниже описано, где они находятся и кто к ним имеет доступ.</p>
@@ -74,7 +74,78 @@
   <p>Если политика изменится, новая версия появится на этой странице. Вопросы можно задать через
     <a href="https://github.com/dimarsoft/first-100-words/issues" target="_blank" rel="noopener">страницу проекта на GitHub</a>.</p>
 
-  <p><a href="./">← Вернуться в приложение</a></p>
+  <p><a href="./">← Вернуться в приложение</a> · <a href="about.html">О приложении</a> · <a href="#en">English version</a></p>
+
+  <hr style="border:0;border-top:1px solid var(--line);margin:36px 0">
+
+  <section id="en" lang="en">
+    <h1>Privacy Policy</h1>
+    <p class="muted">First100Words («Первые 100 слов»). Effective date: November 26, 2026.</p>
+
+    <p>First100Words is a free diary app in which parents record their child's first words. The app is developed
+      by an individual developer, has no server and does not collect, store or share user data. This policy explains
+      what data the app handles, where it is kept and how Google user data is used.</p>
+
+    <h2>Data the user enters</h2>
+    <ul>
+      <li>The child's name (optional) and date of birth — used only to show the child's age.</li>
+      <li>Words: the child's pronunciation, meaning, date, whether the child said it independently, and an optional note.</li>
+      <li>Optional audio recordings (up to 60 seconds per word), made only when the user taps the record button.</li>
+    </ul>
+
+    <h2>Where data is stored</h2>
+    <ul>
+      <li><b>On the user's device</b>, in the browser's local storage (IndexedDB). Nothing is sent to the developer;
+        the developer has no access to it.</li>
+      <li><b>In files the user exports</b> (backup, CSV table, print/PDF), only when the user chooses to, to a destination the user selects.</li>
+      <li><b>In the user's own Google Drive</b>, only if the user taps “Save to Google Drive”.</li>
+    </ul>
+
+    <h2>Google user data</h2>
+    <h3>Data accessed</h3>
+    <p>The app requests a single OAuth scope: <code>https://www.googleapis.com/auth/drive.file</code>. With it the app can
+      create, read, update and delete only the files it created itself. It cannot see, read or modify any other files
+      in the user's Google Drive. The app does not request the user's name, email address, contacts or any other Google data.</p>
+    <h3>How the data is used</h3>
+    <p>The app creates one file named “Первые 100 слов — копия.json” in the user's Drive containing a backup of the diary
+      (words, the child's name and date of birth, audio recordings). It is used only to save this backup when the user taps
+      “Save to Google Drive” and to restore it when the user taps “Load from Google Drive” (for example, on a new phone).
+      Google data is not used for any other purpose, including advertising, analytics, profiling or training AI/ML models.</p>
+    <h3>Sharing</h3>
+    <p>Google user data is not shared with, transferred to or sold to anyone. Data travels directly between the user's
+      device and Google over HTTPS; there are no intermediate servers.</p>
+    <h3>Storage and protection</h3>
+    <p>The backup file is stored only in the user's Google Drive account. The temporary access token issued by Google is kept
+      only in the memory of the open page (about one hour) and is never written to storage or sent anywhere except to Google APIs.</p>
+    <h3>Retention and deletion</h3>
+    <p>The backup file remains in the user's Drive until the user deletes it. The user can revoke the app's access at any time
+      in the app (“Settings → Disconnect Google Drive”) or at
+      <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>,
+      and can delete the backup file from Google Drive. Data on the device is deleted by clearing the site data in the browser
+      or by uninstalling the app.</p>
+    <h3>Limited Use</h3>
+    <p>First100Words' use and transfer of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
+      including the Limited Use requirements.</p>
+
+    <h2>What the app does not do</h2>
+    <ul>
+      <li>No accounts, no ads, no analytics or tracking cookies, no third-party SDKs other than Google Sign-In.</li>
+      <li>No AI features; the app does not create or process images.</li>
+    </ul>
+
+    <h2>Microphone</h2>
+    <p>The microphone is used only while the user records audio or dictates text. Recordings are stored on the device.</p>
+
+    <h2>Children</h2>
+    <p>The app is intended for parents. It does not collect any data from children; information about the child is entered
+      by the parent and stays on the parent's device or in the parent's own Google Drive.</p>
+
+    <h2>Changes and contact</h2>
+    <p>Updates to this policy will be published on this page. Questions can be asked via the
+      <a href="https://github.com/dimarsoft/first-100-words/issues" target="_blank" rel="noopener">project page on GitHub</a>.</p>
+    <p><a href="./">← Back to the app</a> · <a href="about.html">About the app</a></p>
+  </section>
 </main>
 </body>
 </html>
