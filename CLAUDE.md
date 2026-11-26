@@ -16,8 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Сборки, зависимостей, тестов и линтера нет — обычные HTML/CSS/JS, раздаются как статические файлы.
 
 - Запуск локально: из папки `docs/` выполнить `python -m http.server 8765 --bind 127.0.0.1` и открыть http://127.0.0.1:8765. Service worker, микрофон и установка на главный экран работают только на `localhost` или по HTTPS, не через `file://`.
-- Публикация: push в `main`. GitHub Pages раздаёт `main:/docs` (режим из ветки, без Actions — у токена gh нет права `workflow`): https://dimarsoft.github.io/first-100-words/.
-- После любого изменения в `docs/` увеличить `CACHE` в `docs/sw.js` (`first100-v1` → `v2` …) и добавить новые файлы в список `FILES`, иначе установленное приложение не обновится.
+- Публикация: push в `main`. Workflow `.github/workflows/ci.yml` прогоняет проверки (`node --check`, `.github/check.py`) и публикует `docs/` на GitHub Pages через Actions: https://dimarsoft.github.io/first-100-words/. Локально проверки: `python .github/check.py <базовый-коммит>`.
+- Версия ПО — последний git-тег `vX.Y.Z`; `docs/git-info.json` (версия, коммит, дата) собирает CI, в репозитории лежит заглушка `0.0.0-dev`, её не править. Новая версия: `git tag vX.Y.Z` и `git push --atomic origin main vX.Y.Z` (тег должен прийти вместе с коммитом, иначе сборка возьмёт старую версию).
+- После любого изменения в `docs/` увеличить `CACHE` в `docs/sw.js` (`first100-v1` → `v2` …) и добавить новые файлы в список `FILES`, иначе установленное приложение не обновится. CI это проверяет и падает.
 
 ## Архитектура
 
